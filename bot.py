@@ -9,7 +9,7 @@ from discord.ext import commands
 app = fastapi.FastAPI()
 
 
-BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.G5LLIE.wog9y3Sm3QMRm6nDb1U119EFT9aeqdJa95bLPQ'
+BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GIjaHb.FfYzPW4irOYRUXO5XD__zEuTWqjnXuEBu6ixOk'
 
 CHANNEL_ID = 1170336672722976821
 
@@ -28,7 +28,6 @@ async def get_bot_info():
 
 @app.post("/api/send-message/{message}")
 async def send_discord_message(message: str):
-    # Replace this with your Discord channel ID
     CHANNEL_ID = 1170336672722976821
     channel = bot.get_channel(CHANNEL_ID)
 
@@ -42,12 +41,38 @@ async def send_discord_message(message: str):
 async def welcome(ctx:commands.Context, member:discord.Member):
     await ctx.send(f"Welcome to {ctx.guild.name}, {member.mention}!")
     
-@app.get("/api/guilds")
-async def list_guilds():
-    guilds = [guild.name for guild in bot.guilds]
-    return {"guilds": guilds}
 
-# Run your Discord bot and FastAPI app together
+
+@bot.command(name='get_crypto_price', help='Get cryptocurrency price')
+async def get_crypto_price(ctx, vs_currency='usd'):
+    CHANNEL_ID = 1183035389334798338
+
+    if ctx.channel.id == CHANNEL_ID:
+        url = 'https://api.coingecko.com/api/v3/coins/markets'
+        params = {
+            'vs_currency': vs_currency,
+            'order': 'market_cap_desc',
+            'per_page': 5,  
+            'page': 1,
+            'sparkline': False,
+            'price_change_percentage': '1h,24h,7d',  
+            'ids': 'bitcoin,ethereum,binancecoin,ripple,litecoin',  
+        }
+
+        response = requests.get(url, params=params)
+        data = response.json()
+
+        for crypto in data:
+            name = crypto.get('name')
+            symbol = crypto.get('symbol')
+            price = crypto.get('current_price')
+
+            message = f'{name} ({symbol}): {vs_currency} {price}\n'
+            await ctx.send(message)
+    else:
+        await ctx.send('This command can only be used in crypto-price-show channel.')
+
+
 
 async def run():
     try:
