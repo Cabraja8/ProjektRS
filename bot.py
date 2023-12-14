@@ -7,9 +7,14 @@ from pydantic import BaseModel
 from discord.ext import commands
 
 app = fastapi.FastAPI()
+intents = discord.Intents.default()
+intents.messages = True
+intents.guilds = True
+intents.members = True
 
 
-BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GIjaHb.FfYzPW4irOYRUXO5XD__zEuTWqjnXuEBu6ixOk'
+
+BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GlI19l.WnOBd5hX35jcyNCGgl4Ih98Im0CZThqvQjbThc'
 
 CHANNEL_ID = 1170336672722976821
 
@@ -71,6 +76,55 @@ async def get_crypto_price(ctx, vs_currency='usd'):
             await ctx.send(message)
     else:
         await ctx.send('This command can only be used in crypto-price-show channel.')
+
+@bot.command(name='poll')
+async def poll(ctx, *, question):
+  
+    poll_embed = discord.Embed(
+        title='📊 Poll',
+        description=question,
+        color=0x3498db  
+    )
+    poll_embed.set_footer(text=f'Poll started by {ctx.author.display_name}')
+
+   
+    poll_message = await ctx.send(embed=poll_embed)
+    await poll_message.add_reaction('👍')  
+    await poll_message.add_reaction('👎')  
+
+   
+    await ctx.message.delete()
+
+
+@bot.command(name="changerole")
+async def change_role(ctx, member: discord.Member, role_name: str):
+    role = discord.utils.get(ctx.guild.roles, name=role_name)
+
+    if role is None:
+        await ctx.send(f"Role {role_name} not found.")
+        return
+
+    try:
+        await member.add_roles(role)
+        await ctx.send(f"{member.mention} has been given the {role_name} role.")
+    except discord.Forbidden:
+        await ctx.send("I don't have the necessary permissions to change roles.")
+
+@app.post("/changerole/{guild_id}/{member_id}/{role_name}")
+async def api_change_role(guild_id: int, member_id: int, role_name: str):
+    guild = bot.get_guild(guild_id)
+    if guild is None:
+        raise HTTPException(status_code=404, detail="Guild not found")
+
+    member = guild.get_member(member_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    ctx = await bot.get_context(await bot.http.get(f"/guilds/{guild_id}/channels", params={"limit": 1}))
+    await change_role.invoke(ctx, member=member, role_name=role_name)
+
+    return {"message": f"Changed {member.display_name}'s role to {role_name}"}
+
 
 
 
