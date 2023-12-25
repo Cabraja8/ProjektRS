@@ -14,7 +14,7 @@ intents.members = True
 
 
 
-BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GlI19l.WnOBd5hX35jcyNCGgl4Ih98Im0CZThqvQjbThc'
+BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.G15gds.FDe-Ythm-FCNh9kmipb2G7afl711yXu4kLfQ0Y'
 
 CHANNEL_ID = 1170336672722976821
 
@@ -31,24 +31,39 @@ async def hello_world():
 async def get_bot_info():
     return {"bot_name": bot.user.name, "bot_id": bot.user.id}
 
-@app.post("/api/send-message/{message}")
-async def send_discord_message(message: str):
-    CHANNEL_ID = 1170336672722976821
-    channel = bot.get_channel(CHANNEL_ID)
-
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
-
-    await channel.send(message)
-    return {"status": "Message sent"}
-
 @bot.command()
 async def welcome(ctx:commands.Context, member:discord.Member):
     await ctx.send(f"Welcome to {ctx.guild.name}, {member.mention}!")
+
+
+@bot.command(name="commands", help="Show all available commands with descriptions")
+async def show_commands(ctx):
+    command_list = []
     
+    
+    for command in bot.commands:
+        if command.hidden:
+            continue  
+        command_list.append(f"**{command.name}**: {command.help}")
+
+ 
+    commands_message = "\n".join(command_list)
+
+  
+    await ctx.send(f"**Available Commands**\n\n{commands_message}")
 
 
-@bot.command(name='get_crypto_price', help='Get cryptocurrency price')
+@bot.command(name="sendmessage", help='Send messages in a specific channel.')
+async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message: str):
+    try:
+        
+        await channel.send(f"@everyone {message}")
+        return {"status": "Message sent"}
+    except Exception as e:
+       
+        return {"status": f"Error: {str(e)}"}
+
+@bot.command(name='get_crypto_price', help='Get cryptocurrency price. ')
 async def get_crypto_price(ctx, vs_currency='usd'):
     CHANNEL_ID = 1183035389334798338
 
@@ -77,7 +92,7 @@ async def get_crypto_price(ctx, vs_currency='usd'):
     else:
         await ctx.send('This command can only be used in crypto-price-show channel.')
 
-@bot.command(name='poll')
+@bot.command(name='poll', help='Create a poll with a question.')
 async def poll(ctx, *, question):
   
     poll_embed = discord.Embed(
@@ -96,7 +111,7 @@ async def poll(ctx, *, question):
     await ctx.message.delete()
 
 
-@bot.command(name="changerole")
+@bot.command(name="changerole", help='Change a role for a member.')
 async def change_role(ctx, member: discord.Member, role_name: str):
     role = discord.utils.get(ctx.guild.roles, name=role_name)
 
@@ -110,20 +125,20 @@ async def change_role(ctx, member: discord.Member, role_name: str):
     except discord.Forbidden:
         await ctx.send("I don't have the necessary permissions to change roles.")
 
-@app.post("/changerole/{guild_id}/{member_id}/{role_name}")
-async def api_change_role(guild_id: int, member_id: int, role_name: str):
-    guild = bot.get_guild(guild_id)
-    if guild is None:
-        raise HTTPException(status_code=404, detail="Guild not found")
+@bot.command(name="removerole", help='Remove a role for a member')
+async def remove_role(ctx, member: discord.Member, role_name: str):
+    role = discord.utils.get(ctx.guild.roles, name=role_name)
 
-    member = guild.get_member(member_id)
-    if member is None:
-        raise HTTPException(status_code=404, detail="Member not found")
+    if role is None:
+        await ctx.send(f"Role {role_name} not found.")
+        return
 
-    ctx = await bot.get_context(await bot.http.get(f"/guilds/{guild_id}/channels", params={"limit": 1}))
-    await change_role.invoke(ctx, member=member, role_name=role_name)
+    try:
+        await member.remove_roles(role)
+        await ctx.send(f"{member.mention} has been removed from the {role_name} role.")
+    except discord.Forbidden:
+        await ctx.send("I don't have the necessary permissions to change roles.")
 
-    return {"message": f"Changed {member.display_name}'s role to {role_name}"}
 
 
 
