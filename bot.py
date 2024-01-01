@@ -5,6 +5,11 @@ import requests
 from fastapi import HTTPException
 from pydantic import BaseModel
 from discord.ext import commands
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+import socket
+from httpx import AsyncClient
+import openai
+from config import API_KEY,TOKEN
 
 app = fastapi.FastAPI()
 intents = discord.Intents.default()
@@ -12,16 +17,19 @@ intents.messages = True
 intents.guilds = True
 intents.members = True
 
-
-
-BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.G15gds.FDe-Ythm-FCNh9kmipb2G7afl711yXu4kLfQ0Y'
-
+BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GTvPum.d4yI2_xNI9tVdIBG37S3yXwS8xikiJED2bgKyk'
+openai.api_key = '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'
 CHANNEL_ID = 1170336672722976821
 
-bot = commands.Bot(command_prefix="!",intents=discord.Intents.all())
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+
+
 
 class MessageRequest(BaseModel):
     message: str
+
+
+
 
 @app.get("/")
 async def hello_world():
@@ -34,6 +42,19 @@ async def get_bot_info():
 @bot.command()
 async def welcome(ctx:commands.Context, member:discord.Member):
     await ctx.send(f"Welcome to {ctx.guild.name}, {member.mention}!")
+
+@bot.command(name='gpt', help='Generate text using GPT-3')
+async def generate_text(ctx, *, prompt):
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=150
+        )
+        generated_text = response.choices[0].text.strip()
+        await ctx.send(f'Generated Text: {generated_text}')
+    except Exception as e:
+        await ctx.send(f"An error occurred: {str(e)}")
 
 
 @bot.command(name="commands", help="Show all available commands with descriptions")
@@ -62,6 +83,17 @@ async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message:
     except Exception as e:
        
         return {"status": f"Error: {str(e)}"}
+    
+
+async def process_task(number):
+    
+    await asyncio.sleep(5)
+    return {"result": number ** 2}
+
+
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name} ({bot.user.id})')
 
 @bot.command(name='get_crypto_price', help='Get cryptocurrency price. ')
 async def get_crypto_price(ctx, vs_currency='usd'):
@@ -140,9 +172,6 @@ async def remove_role(ctx, member: discord.Member, role_name: str):
         await ctx.send("I don't have the necessary permissions to change roles.")
 
 
-
-
-
 async def run():
     try:
         await bot.start(BOT_TOKEN)
@@ -150,3 +179,4 @@ async def run():
         await bot.logout()
 
 asyncio.create_task(run())
+
