@@ -9,7 +9,10 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import socket
 from httpx import AsyncClient
 import openai
-from config import API_KEY,TOKEN
+import aiohttp
+from functools import partial
+import os
+from decouple import config
 
 app = fastapi.FastAPI()
 intents = discord.Intents.default()
@@ -17,19 +20,24 @@ intents.messages = True
 intents.guilds = True
 intents.members = True
 
-BOT_TOKEN = 'MTE2OTY4MTE5MjczMjMzNjMxMA.GTvPum.d4yI2_xNI9tVdIBG37S3yXwS8xikiJED2bgKyk'
-openai.api_key = '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'
-CHANNEL_ID = 1170336672722976821
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+BOT_TOKEN = config('BOT_TOKEN')
+SHARD_ID = int(config('SHARD_ID', default=0))
+SHARD_COUNT = int(config('SHARD_COUNT', default=1))
+OPENAI_API_KEY = config('OPENAI_API_KEY')
+CHANNEL_ID = 1170336672722976821
+openai.api_key = OPENAI_API_KEY
+bot_emote_channel_id = 1191693037315829851
+
+bot = commands.AutoShardedBot(command_prefix="!", intents=discord.Intents.all(),shard_count=SHARD_COUNT, shard_id=SHARD_ID)
 
 
 
 class MessageRequest(BaseModel):
     message: str
 
-
-
+async_executor = ThreadPoolExecutor()
+    
 
 @app.get("/")
 async def hello_world():
@@ -43,35 +51,66 @@ async def get_bot_info():
 async def welcome(ctx:commands.Context, member:discord.Member):
     await ctx.send(f"Welcome to {ctx.guild.name}, {member.mention}!")
 
-@bot.command(name='gpt', help='Generate text using GPT-3')
-async def generate_text(ctx, *, prompt):
+@bot.command(name='reactrole', help='React to a message to get or remove the role.')
+async def react_role(ctx):
+    
+    emote = "👍"
+    message_content = f"React with {emote} to get or remove the '{"Members"}' role!"
+    message = await ctx.send(message_content)
+    await message.add_reaction(emote)
+
+    print(f"React to the message with '{emote}' to get or remove the role.")
+
+@bot.event
+async def on_reaction_add(reaction, user):
+    await toggle_role(reaction, user)
+
+@bot.event
+async def on_reaction_remove(reaction, user):
+    await toggle_role(reaction, user)
+
+async def toggle_role(reaction, user):
+    if reaction.message.id == bot_emote_channel_id and str(reaction.emoji) == "👍":
+        role = discord.utils.get(user.guild.roles, name="Members")
+
+        if role:
+            if reaction.emoji in [r.emoji for r in reaction.message.reactions]:
+                if reaction.emoji == "👍":
+                    await user.add_roles(role)
+                    print(f"{user.name} has been given the role: {role.name}")
+                else:
+                    await user.remove_roles(role)
+                    print(f"{user.name} has removed the role: {role.name}")
+
+
+async_executor = ThreadPoolExecutor()
+
+@bot.command(name='ask_gpt', help='Ask GPT-3 a question.')
+async def ask_gpt(ctx, *, question):
     try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            max_tokens=150
+        previous_messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": question},
+        ]
+
+       
+        loop = asyncio.get_event_loop()
+
+      
+        partial_func = partial(openai.ChatCompletion.create,
+            model="gpt-3.5-turbo",
+            messages=previous_messages,
         )
-        generated_text = response.choices[0].text.strip()
-        await ctx.send(f'Generated Text: {generated_text}')
+
+        response = await loop.run_in_executor(async_executor, partial_func)
+
+        generated_text = response['choices'][0]['message']['content'].strip()
+
+        await ctx.send(f'GPT-3 says: {generated_text}')
+
     except Exception as e:
         await ctx.send(f"An error occurred: {str(e)}")
 
-
-@bot.command(name="commands", help="Show all available commands with descriptions")
-async def show_commands(ctx):
-    command_list = []
-    
-    
-    for command in bot.commands:
-        if command.hidden:
-            continue  
-        command_list.append(f"**{command.name}**: {command.help}")
-
- 
-    commands_message = "\n".join(command_list)
-
-  
-    await ctx.send(f"**Available Commands**\n\n{commands_message}")
 
 
 @bot.command(name="sendmessage", help='Send messages in a specific channel.')
