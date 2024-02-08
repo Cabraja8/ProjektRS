@@ -25,12 +25,8 @@ BOT_TOKEN = config('BOT_TOKEN')
 SHARD_ID = int(config('SHARD_ID', default=0))
 SHARD_COUNT = int(config('SHARD_COUNT', default=1))
 OPENAI_API_KEY = config('OPENAI_API_KEY')
-CHANNEL_ID = 1170336672722976821
 openai.api_key = OPENAI_API_KEY
-bot_emote_channel_id = 1191693037315829851
-
 bot = commands.AutoShardedBot(command_prefix="!", intents=discord.Intents.all(),shard_count=SHARD_COUNT, shard_id=SHARD_ID)
-
 
 
 class MessageRequest(BaseModel):
@@ -53,49 +49,44 @@ async def welcome(ctx:commands.Context, member:discord.Member):
 
 @bot.command(name='reactrole', help='React to a message to get or remove the role.')
 async def react_role(ctx):
-    ROLE_EMOTE_CHANNEL_ID = 1191693037315829851
+    try:
+        ROLE_EMOTE_CHANNEL_ID = 1191693037315829851
+        role_name = 'Members' 
 
-    if ctx.channel.id == ROLE_EMOTE_CHANNEL_ID:
-        emote = "👍"
-        message_content = f"React with {emote} to get or remove the 'Members' role!"
-        message = await ctx.send(message_content)
-        await message.add_reaction(emote)
+        if ctx.channel.id == ROLE_EMOTE_CHANNEL_ID:
+            emote = "👍"
+            message_content = f"React with {emote} to get or remove the '{role_name}' role!"
+            message = await ctx.send(message_content)
+            await message.add_reaction(emote)
 
-        await ctx.send(f"React to the message with '{emote}' to get or remove the role.")
-    else:
-        await ctx.send('⚠️ This command can only be used in the designated role-emote channel.')
+            await ctx.send(f"React to the message with '{emote}' to get or remove the '{role_name}' role.")
 
+        
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if role:
+                def check(reaction, user):
+                    return user == ctx.author and str(reaction.emoji) == emote
+
+                reaction, user = await bot.wait_for('reaction_add', check=check)
+                member: discord.Member = user
+
+             
+                if reaction.emoji == emote:
+                    await member.add_roles(role)
+                    await ctx.send(f"Role '{role_name}' has been added to {member.display_name}.")
+                else:
+                    await member.remove_roles(role)
+                    await ctx.send(f"Role '{role_name}' has been removed from {member.display_name}.")
+            else:
+                await ctx.send(f"Role '{role_name}' not found.")
+        else:
+            await ctx.send('⚠️ This command can only be used in the designated role-emote channel.')
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
 
 @bot.event
 async def on_shard_ready(shard_id):
     print(f'Shard #{shard_id} is ready')
-
-
-@bot.event
-async def on_reaction_add(reaction, user):
-    await toggle_role(reaction, user)
-
-@bot.event
-async def on_reaction_remove(reaction, user):
-    await toggle_role(reaction, user)
-
-async def toggle_role(reaction, user):
-    
-    
-
-    if reaction.message.id == bot_emote_channel_id and str(reaction.emoji) == "👍":
-        role = discord.utils.get(user.guild.roles, name="Members")
-
-        if role:
-            if reaction.emoji in [r.emoji for r in reaction.message.reactions]:
-                if reaction.emoji == "👍":
-                    await user.add_roles(role)
-                    print(f"{user.name} has been given the role: {role.name}")
-                else:
-                    await user.remove_roles(role)
-                    print(f"{user.name} has removed the role: {role.name}")
-
-
 
 
 @bot.command(name='ask_gpt', help='Ask GPT-3 a question.')
@@ -156,20 +147,12 @@ async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message:
     else:
         await ctx.send("⚠️ This command is intended to be used in the designated send message channel.")
 
-    
-
-async def process_task(number):
-    
-    await asyncio.sleep(5)
-    return {"result": number ** 2}
-
-
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
 
 @bot.command(name='get_crypto_price', help='Get cryptocurrency price. ')
-async def get_crypto_price(ctx, vs_currency='usd'):
+async def get_crypto_price(ctx, vs_currency='eur'):
     CRYPTO_PRICE_CHANNEL_ID = 1183035389334798338
 
     if ctx.channel.id == CRYPTO_PRICE_CHANNEL_ID:
@@ -217,8 +200,6 @@ async def poll(ctx, *, question):
         await ctx.message.delete()
     else:
         await ctx.send("⚠️ This command is intended to be used in the designated poll channel.")
-
-
 
 @bot.command(name="changerole", help='Change a role for a member.')
 async def change_role(ctx, member: discord.Member, role_name: str):
