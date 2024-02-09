@@ -20,7 +20,6 @@ intents.messages = True
 intents.guilds = True
 intents.members = True
 
-
 BOT_TOKEN = config('BOT_TOKEN')
 SHARD_ID = int(config('SHARD_ID', default=0))
 SHARD_COUNT = int(config('SHARD_COUNT', default=1))
@@ -34,7 +33,6 @@ class MessageRequest(BaseModel):
 
 async_executor = ThreadPoolExecutor()
     
-
 @app.get("/")
 async def hello_world():
     return {"hello": "world"}
@@ -51,26 +49,26 @@ async def welcome(ctx:commands.Context, member:discord.Member):
 async def react_role(ctx):
     try:
         ROLE_EMOTE_CHANNEL_ID = 1191693037315829851
-        role_name = 'Members' 
+        role_name = 'Members'
 
         if ctx.channel.id == ROLE_EMOTE_CHANNEL_ID:
             emote = "👍"
             message_content = f"React with {emote} to get or remove the '{role_name}' role!"
-            message = await ctx.send(message_content)
+            async with ctx.typing(): 
+                message = await ctx.send(message_content)
             await message.add_reaction(emote)
 
             await ctx.send(f"React to the message with '{emote}' to get or remove the '{role_name}' role.")
 
-        
             role = discord.utils.get(ctx.guild.roles, name=role_name)
             if role:
                 def check(reaction, user):
                     return user == ctx.author and str(reaction.emoji) == emote
 
-                reaction, user = await bot.wait_for('reaction_add', check=check)
+                async with ctx.typing():  
+                    reaction, user = await bot.wait_for('reaction_add', check=check)
                 member: discord.Member = user
 
-             
                 if reaction.emoji == emote:
                     await member.add_roles(role)
                     await ctx.send(f"Role '{role_name}' has been added to {member.display_name}.")
@@ -88,28 +86,29 @@ async def react_role(ctx):
 async def on_shard_ready(shard_id):
     print(f'Shard #{shard_id} is ready')
 
-
 @bot.command(name='ask_gpt', help='Ask GPT-3 a question.')
 async def ask_gpt(ctx, *, question):
     GPT_3_CHANNEL_ID = 1191367082613428254
 
     if ctx.channel.id == GPT_3_CHANNEL_ID:
         try:
-            previous_messages = [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": question},
-            ]
+           
+            async with ctx.typing():
+                previous_messages = [
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": question},
+                ]
 
-            loop = asyncio.get_event_loop()
+                loop = asyncio.get_event_loop()
 
-            partial_func = partial(openai.ChatCompletion.create,
-                model="gpt-3.5-turbo",
-                messages=previous_messages,
-            )
+                partial_func = partial(openai.ChatCompletion.create,
+                    model="gpt-3.5-turbo",
+                    messages=previous_messages,
+                )
 
-            response = await loop.run_in_executor(async_executor, partial_func)
+                response = await loop.run_in_executor(async_executor, partial_func)
 
-            generated_text = response['choices'][0]['message']['content'].strip()
+                generated_text = response['choices'][0]['message']['content'].strip()
 
             await ctx.send(f'GPT-3 says: {generated_text}')
 
@@ -118,16 +117,14 @@ async def ask_gpt(ctx, *, question):
     else:
         await ctx.send('⚠️ This command can only be used in the designated GPT-3 channel.')
 
-
-
-
 @bot.command(name="sendmessage", help='Send messages in a specific channel.')
 async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message: str):
     SEND_MESSAGE_CHANNEL_ID = 1202637167659188266
 
     if ctx.channel.id == SEND_MESSAGE_CHANNEL_ID:
         try:
-            await channel.send(f"{message}")
+            async with ctx.typing(): 
+                await channel.send(f"{message}")
             await ctx.send("Message sent successfully.")
         except Exception as e:
             await ctx.send(f"Error: {str(e)}")
@@ -140,8 +137,9 @@ async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message:
 
     if ctx.channel.id == SEND_MESSAGE_CHANNEL_ID:
         try:
-            await channel.send(f"@everyone {message}")
-            await ctx.send("Message sent successfully.")
+             async with ctx.typing(): 
+                 await channel.send(f"@everyone {message}")
+                 await ctx.send("Message sent successfully.")
         except Exception as e:
             await ctx.send(f"Error: {str(e)}")
     else:
@@ -151,7 +149,7 @@ async def send_message_to_channel(ctx, channel: discord.TextChannel, *, message:
 async def on_ready():
     print(f'Logged in as {bot.user.name} ({bot.user.id})')
 
-@bot.command(name='get_crypto_price', help='Get cryptocurrency price. ')
+@bot.command(name='get_crypto_price', help='Get cryptocurrency price.')
 async def get_crypto_price(ctx, vs_currency='eur'):
     CRYPTO_PRICE_CHANNEL_ID = 1183035389334798338
 
@@ -160,23 +158,24 @@ async def get_crypto_price(ctx, vs_currency='eur'):
         params = {
             'vs_currency': vs_currency,
             'order': 'market_cap_desc',
-            'per_page': 5,  
+            'per_page': 5,
             'page': 1,
             'sparkline': False,
-            'price_change_percentage': '1h,24h,7d',  
-            'ids': 'bitcoin,ethereum,binancecoin,ripple,litecoin',  
+            'price_change_percentage': '1h,24h,7d',
+            'ids': 'bitcoin,ethereum,binancecoin,ripple,litecoin',
         }
 
-        response = requests.get(url, params=params)
-        data = response.json()
+        async with ctx.typing():  
+            response = requests.get(url, params=params)
+            data = response.json()
 
-        for crypto in data:
-            name = crypto.get('name')
-            symbol = crypto.get('symbol')
-            price = crypto.get('current_price')
+            for crypto in data:
+                name = crypto.get('name')
+                symbol = crypto.get('symbol')
+                price = crypto.get('current_price')
 
-            message = f'{name} ({symbol}): {vs_currency} {price}\n'
-            await ctx.send(message)
+                message = f'{name} ({symbol}): {vs_currency} {price}\n'
+                await ctx.send(message)
     else:
         await ctx.send('This command can only be used in crypto-price-show channel.')
 
@@ -184,62 +183,63 @@ async def get_crypto_price(ctx, vs_currency='eur'):
 async def poll(ctx, *, question):
     POLL_CHANNEL_ID = 1202637430277144646
     
-  
     if ctx.channel.id == POLL_CHANNEL_ID:
-        poll_embed = discord.Embed(
-            title='📊 Poll',
-            description=question,
-            color=0x3498db  
-        )
-        poll_embed.set_footer(text=f'Poll started by {ctx.author.display_name}')
+        async with ctx.typing():  
+            poll_embed = discord.Embed(
+                title='📊 Poll',
+                description=question,
+                color=0x3498db  
+            )
+            poll_embed.set_footer(text=f'Poll started by {ctx.author.display_name}')
 
-        poll_message = await ctx.send(embed=poll_embed)
-        await poll_message.add_reaction('👍')  
-        await poll_message.add_reaction('👎')  
+            poll_message = await ctx.send(embed=poll_embed)
+            await poll_message.add_reaction('👍')  
+            await poll_message.add_reaction('👎')  
 
-        await ctx.message.delete()
+            await ctx.message.delete()
     else:
         await ctx.send("⚠️ This command is intended to be used in the designated poll channel.")
 
 @bot.command(name="changerole", help='Change a role for a member.')
 async def change_role(ctx, member: discord.Member, role_name: str):
     ROLE_CHANGER_CHANNEL_ID = 1202637204296306749
-
-   
+    
     if ctx.channel.id == ROLE_CHANGER_CHANNEL_ID:
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        async with ctx.typing():  
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
 
-        if role is None:
-            await ctx.send(f"Role {role_name} not found.")
-            return
+            if role is None:
+                await ctx.send(f"Role {role_name} not found.")
+                return
 
-        try:
-            await member.add_roles(role)
-            await ctx.send(f"{member.mention} has been given the {role_name} role.")
-        except discord.Forbidden:
-            await ctx.send("I don't have the necessary permissions to change roles.")
+            try:
+                await member.add_roles(role)
+                await ctx.send(f"{member.mention} has been given the {role_name} role.")
+            except discord.Forbidden:
+                await ctx.send("I don't have the necessary permissions to change roles.")
     else:
         await ctx.send("⚠️ This command is intended to be used in the designated role changer channel.")
 
 @bot.command(name="removerole", help='Remove a role for a member')
 async def remove_role(ctx, member: discord.Member, role_name: str):
     ROLE_CHANGER_CHANNEL_ID = 1202637204296306749
-
-   
+    
     if ctx.channel.id == ROLE_CHANGER_CHANNEL_ID:
-        role = discord.utils.get(ctx.guild.roles, name=role_name)
+        async with ctx.typing():  
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
 
-        if role is None:
-            await ctx.send(f"Role {role_name} not found.")
-            return
+            if role is None:
+                await ctx.send(f"Role {role_name} not found.")
+                return
 
-        try:
-            await member.remove_roles(role)
-            await ctx.send(f"{member.mention} has been removed from the {role_name} role.")
-        except discord.Forbidden:
-            await ctx.send("I don't have the necessary permissions to change roles.")
+            try:
+                await member.remove_roles(role)
+                await ctx.send(f"{member.mention} has been removed from the {role_name} role.")
+            except discord.Forbidden:
+                await ctx.send("I don't have the necessary permissions to change roles.")
     else:
         await ctx.send("⚠️ This command is intended to be used in the designated role changer channel.")
+
 
 async def run():
     try:
